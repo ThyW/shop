@@ -13,7 +13,11 @@ load() {
 }
 
 run() {
-    sudo docker run -p 5432:5432 -v $PWD/pgsql-data:/var/lib/postgresql -d shop-db
+    echo $(sudo docker run -p 5432:5432 -v $PWD/pgsql-data:/var/lib/postgresql -d shop-db) > .id
+}
+
+kill() {
+    sudo docker kill $(cat .id);
 }
 
 if [ $1 = "build" ]; then
@@ -22,4 +26,6 @@ elif [ $1 = "load" ]; then
     load;
 elif [ $1 = "run" ]; then
     run;
+elif [ $1 = "kill" ]; then
+    kill;
 fi
