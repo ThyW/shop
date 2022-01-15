@@ -9,11 +9,11 @@ build() {
 }
 
 load() {
-    ./result | docker load
+    ./result | sudo docker load
 }
 
 run() {
-    docker run -p 5432:5432 -v $PWD/pgsql-data:/var/lib/postgresql -d shop-db
+    sudo docker run -p 5432:5432 -v $PWD/pgsql-data:/var/lib/postgresql -d shop-db
 }
 
 if [ $1 = "build" ]; then
