@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+
+<div class="container">
+{% block content %}
+{% if item %}
+    <h3>{{item.name}}</h3>
+    <p>{{item.description}}</p>
+    <p>Left: {{item.amout}}</p>
+{% endif %}
+{% endblock %}
+</div>

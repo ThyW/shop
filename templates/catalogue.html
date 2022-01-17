@@ -1,0 +1,11 @@
+{%extends 'base.html'%}
+
+
+<div class="container">
+{%block content%}
+    {% for item in shop_items %}
+	<h3><a href="product/{{item.id}}">{{item.name}}</a></h3>
+	<p>{{item.description}}</p>
+    {% endfor %}
+{%endblock%}
+</div>

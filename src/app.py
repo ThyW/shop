@@ -3,10 +3,11 @@ from flask_sqlalchemy import SQLAlchemy
 
 
 class App:
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, secret_key: str) -> None:
         self._app = Flask(name, template_folder="templates")
         self._app.config["SQLALCHEMY_DATABASE_URI"] =\
                 "postgresql://shop@localhost:5432/shop"
+        self._app.secret_key = secret_key
         self._db = SQLAlchemy(self._app)
 
     def get_flask(self) -> Flask:

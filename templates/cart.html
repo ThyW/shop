@@ -1,0 +1,11 @@
+{%extends 'base.html'%}
+
+
+<div class="container">
+{%block content%}
+    <h1>Hello {{username}}!</h1>
+    {% for item in cart_items %}
+	<h3><a href="orders/{{item.id}}">{{item.id}}</a></h3>
+    {% endfor %}
+{%endblock%}
+</div>
