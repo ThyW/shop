@@ -5,7 +5,8 @@
 {% if item %}
     <h3>{{item.name}}</h3>
     <p>{{item.description}}</p>
-    <p>Left: {{item.amout}}</p>
+    <p>Left: {{item.amount}}</p>
+    <h5><a href="/add_to_cart/{{item.id}}">Add to Cart</a></h5>
 {% endif %}
 {% endblock %}
 </div>

@@ -3,7 +3,7 @@
 
 from flask import render_template, request, url_for, session, redirect
 from flask.helpers import flash
-from src import App, is_mail
+from src import App, is_mail, MutableList
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy import Integer, String, Column, ForeignKey
 from sqlalchemy.orm import relationship
@@ -12,7 +12,6 @@ from sqlalchemy.orm import relationship
 full_app = App("shop", "super secret key")
 app = full_app.get_flask()
 db = full_app.get_db()
-db.create_all()
 
 
 class Users(db.Model):
@@ -30,8 +29,7 @@ class Orders(db.Model):
     __tablename__ = "orders"
     id = Column(Integer, primary_key=True)
     belongs_to = Column(Integer, ForeignKey("users.id"))
-    products = Column(ARRAY(Integer))
-    products_amount = Column(ARRAY(Integer))
+    products = Column(MutableList.as_mutable(ARRAY(Integer)))
     user = relationship("Users")
 
     def __repr__(self) -> str:
@@ -55,11 +53,22 @@ class Products(db.Model):
         return f"id: {self.id}, amount: {self.amount}, name: {self.name}, description: {self.description}"
 
 
+class Cart(db.Model):
+    __tablename__ = "cart"
+    id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    products = Column(MutableList.as_mutable(ARRAY(Integer)))
+    user = relationship("Users")
+
+    def __repr__(self) -> str:
+        return f"<Cart belongs to: {self.id}, products: {len(self.products)}>"
+
+
 @app.route('/')
 def index():
     username = session.get("username")
+    logged = session.get("logged")
     if username:
-        template = render_template("index.html", name=username)
+        template = render_template("index.html", name=username, user=logged)
     else:
         template = render_template("index.html")
     return template
@@ -73,10 +82,8 @@ def log_in():
         password = request.form.get("password")
         if name_email and password:
             if is_mail(name_email):
-                print("here first")
                 query = Users.query.filter_by(email=name_email, password=password)
                 if q := query.first():
-                    print("got query")
                     session["logged"] = True
                     session["user_id"] = q.id
                     session["username"] = q.name
@@ -84,10 +91,8 @@ def log_in():
                 else:
                     flash("Wrong username or password!")
             else:
-                print("here")
                 query = Users.query.filter_by(name=name_email, password=password)
                 if q := query.first():
-                    print("got query")
                     session["logged"] = True
                     session["user_id"] = q.id
                     session["username"] = q.name
@@ -109,7 +114,9 @@ def sing_up():
         if username and email and password:
             if is_mail(email) and not is_mail(username):
                 new_user = Users(name=username, email=email, password=password)
+                cart = Cart(id=new_user.id, products=[])
                 db.session.add(new_user)
+                db.session.add(cart)
                 success = False
                 try:
                     db.session.commit()
@@ -117,7 +124,7 @@ def sing_up():
                 except:
                     flash("Internal error occured when adding a new user!")
                 if success:
-                    redirect(url_for("log_in"))
+                    redirect("/log_in")
                 else:
                     template = render_template("signup.html")
                     return template
@@ -131,38 +138,47 @@ def sing_up():
 @app.route('/catalogue')
 def catalogue():
     items = Products.query.all()
+    logged = session.get("logged")
 
-    template = render_template("catalogue.html", shop_items=items)
+    template = render_template("catalogue.html", shop_items=items, user=logged)
     return template
 
-
+# TODO: add support for removing stuff from the cart
 @app.route('/cart')
 def cart():
     logged = session.get("logged")
     if logged:
         user_id = session.get("user_id")
         if user_id:
-            products = Orders.query.filter_by(belongs_to=user_id).all()
-
-            return render_template("cart.html", cart_items=products)
+            orders = Orders.query.filter_by(belongs_to=user_id).all()
+            cart = Cart.query.filter_by(id=user_id)
+            if q := cart.first():
+                cart_items = []
+                print(q)
+                for each in q.products:
+                    query = Products.query.filter_by(id=each)
+                    if q := query.first():
+                        cart_items.append(q)
+                return render_template("cart.html", cart_items=cart_items, orders=orders, user=logged)
     else:
-        flash("You are not logged in!")
-    template = render_template("cart.html")
-    return template
+        template = render_template("cart.html", user=logged)
+        return template
 
 
 @app.route('/product/<id>')
 def product(id: str):
     i = int(id)
+    logged = session.get("logged")
     query = Products.query.filter_by(id=i)
     if p := query.first():
-        return render_template("product.html", item=p)
+        return render_template("product.html", item=p, user=logged)
     flash("Such product does not exist!")
 
 
 @app.route('/order/<id>')
 def order(id: str):
     i = int(id)
+    logged = session.get("logged")
     query = Orders.query.filter_by(id=i)
     if q := query.first():
         products = []
@@ -170,8 +186,45 @@ def order(id: str):
             query = Products.query.filter_by(id=product)
             if q2 := query.first():
                 products.append(q2)
-        return render_template("order.html", item=q, items=products)
-    flash("Such order does not exist!")
+        return render_template("order.html",
+                               item=q,
+                               items=products,
+                               user=logged)
+
+
+@app.route('/log_out')
+def log_out():
+    session.clear()
+    return redirect("/")
+
+
+@app.route('/new_order')
+def new_order():
+    uid = session.get("user_id")
+    if uid:
+        new_order = Orders(belongs_to=uid, products=[], products_amount=[])
+        db.session.add(new_order)
+        db.session.commit()
+        session["most_recent_order"] = new_order.id
+        return redirect("/cart")
+    else:
+        flash("Not logged in!")
+        return redirect("/cart")
+
+
+@app.route('/add_to_cart/<id>')
+def add_to_cart(id: str):
+    i = int(id)
+    user_id = session.get("user_id")
+    if user_id:
+        print(user_id)
+        c = Cart.query.filter_by(id=user_id).first()
+        c.products.append(i)
+        print(c)
+        db.session.commit()
+        return redirect(f"/product/{id}")
+    else:
+        return redirect(f"/product/{id}")
 
 
 def main() -> None:
