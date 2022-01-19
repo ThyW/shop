@@ -20,6 +20,10 @@ kill() {
     sudo docker kill $(cat .id);
 }
 
+db-shell() {
+    psql --host=localhost --port=5432 --user=shop -w
+}
+
 if [ $1 = "build" ]; then
     build;
 elif [ $1 = "load" ]; then
@@ -28,4 +32,6 @@ elif [ $1 = "run" ]; then
     run;
 elif [ $1 = "kill" ]; then
     kill;
+elif [ $1 = "db" -a $2 = "shell" ]; then
+    db-shell;
 fi
