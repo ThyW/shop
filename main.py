@@ -1,74 +1,17 @@
 #!/usr/bin/env python3
-
-
-from flask import render_template, request, url_for, session, redirect
+from flask import render_template, request, session, redirect
 from flask.helpers import flash
-from src import App, is_mail, MutableList
-from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy import Integer, String, Column, ForeignKey
-from sqlalchemy.orm import relationship
-
-
-full_app = App("shop", "super secret key")
-app = full_app.get_flask()
-db = full_app.get_db()
-
-
-class Users(db.Model):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
-    email = Column(String(200), nullable=False, unique=True)
-    password = Column(String(100), nullable=False)
-
-    def __repr__(self) -> str:
-        return f"<Name: {self.name}, id: {self.id}, email: {self.email}, password: {self.password}>"
-
-
-class Orders(db.Model):
-    __tablename__ = "orders"
-    id = Column(Integer, primary_key=True)
-    belongs_to = Column(Integer, ForeignKey("users.id"))
-    products = Column(MutableList.as_mutable(ARRAY(Integer)))
-    user = relationship("Users")
-
-    def __repr__(self) -> str:
-        s = ""
-        s += f"<Id: {self.id}, belongs to: {Users.query.filter_by(id=self.belongs_to).first()}"
-        for each in self.products:
-            s += f"\t\n{Products.query.filter_by(id=each).first()}"
-        s += ">"
-        return s
-
-
-class Products(db.Model):
-    __tablename__ = "products"
-    id = Column(Integer, primary_key=True)
-    amount = Column(Integer, nullable=False)
-    name = Column(String, nullable=False)
-    description = Column(String, nullable=False)
-    more_url = Column(String, nullable=True)
-
-    def __repr__(self) -> str:
-        return f"id: {self.id}, amount: {self.amount}, name: {self.name}, description: {self.description}"
-
-
-class Cart(db.Model):
-    __tablename__ = "cart"
-    id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    products = Column(MutableList.as_mutable(ARRAY(Integer)))
-    user = relationship("Users")
-
-    def __repr__(self) -> str:
-        return f"<Cart belongs to: {self.id}, products: {len(self.products)}>"
+from src import is_mail, MutableList, Users, Orders, Cart, Products, app, db, full_app
 
 
 @app.route('/')
 def index():
-    username = session.get("username")
-    logged = session.get("logged")
-    if username:
-        template = render_template("index.html", name=username, user=logged)
+    logged = session.get("username")
+    uid = session.get("user_id")
+    if logged:
+        u = Users.query.filter_by(id=uid).first()
+        admin = u.admin
+        template = render_template("index.html", user=logged, name=logged, admin=admin)
     else:
         template = render_template("index.html")
     return template
@@ -96,6 +39,7 @@ def log_in():
                     session["logged"] = True
                     session["user_id"] = q.id
                     session["username"] = q.name
+                    session["admin"] = q.admin
                     return redirect("/")
                 else:
                     flash("Wrong username or password!")
@@ -138,15 +82,15 @@ def sing_up():
 @app.route('/catalogue')
 def catalogue():
     items = Products.query.all()
-    logged = session.get("logged")
+    logged = session.get("username")
 
-    template = render_template("catalogue.html", shop_items=items, user=logged)
+    template = render_template("catalogue.html", shop_items=items, user=logged, admin=session.get("admin"))
     return template
 
 # TODO: add support for removing stuff from the cart
 @app.route('/cart')
 def cart():
-    logged = session.get("logged")
+    logged = session.get("username")
     if logged:
         user_id = session.get("user_id")
         if user_id:
@@ -154,12 +98,12 @@ def cart():
             cart = Cart.query.filter_by(id=user_id)
             if q := cart.first():
                 cart_items = []
-                print(q)
                 for each in q.products:
                     query = Products.query.filter_by(id=each)
                     if q := query.first():
                         cart_items.append(q)
-                return render_template("cart.html", cart_items=cart_items, orders=orders, user=logged)
+                return render_template("cart.html", cart_items=cart_items, orders=orders, user=logged, admin=session.get("admin"))
+        return render_template("cart.html", user=logged)
     else:
         template = render_template("cart.html", user=logged)
         return template
@@ -168,7 +112,7 @@ def cart():
 @app.route('/product/<id>')
 def product(id: str):
     i = int(id)
-    logged = session.get("logged")
+    logged = session.get("username")
     query = Products.query.filter_by(id=i)
     if p := query.first():
         return render_template("product.html", item=p, user=logged)
@@ -178,7 +122,7 @@ def product(id: str):
 @app.route('/order/<id>')
 def order(id: str):
     i = int(id)
-    logged = session.get("logged")
+    logged = session.get("username")
     query = Orders.query.filter_by(id=i)
     if q := query.first():
         products = []
@@ -220,14 +164,43 @@ def add_to_cart(id: str):
         print(user_id)
         c = Cart.query.filter_by(id=user_id).first()
         c.products.append(i)
-        print(c)
         db.session.commit()
         return redirect(f"/product/{id}")
     else:
         return redirect(f"/product/{id}")
 
 
+@app.route('/add_product', methods=["POST", "GET"])
+def add_product():
+    if request.method == "POST":
+        if uid := session.get("user_id"):
+            query = Users.query.filter_by(id=uid)
+            if q := query.first():
+                if q.admin:
+                    product_name = request.form.get("product_name")
+                    product_description = request.form.get("product_description")
+                    product_amount = request.form.get("product_amount")
+                    if product_name and product_description\
+                            and product_amount:
+                                product = Products(name=product_name,
+                                                   amount=product_amount,
+                                                   description=product_description)
+                                db.session.add(product)
+                                succ = False
+                                try:
+                                    db.session.commit()
+                                    succ = True
+                                except:
+                                    flash("failed")
+                                if succ:
+                                    return redirect("/add_product")
+                                else:
+                                    return redirect("/")
+    return render_template("add_product.html", user=session.get("username"))
+
+
 def main() -> None:
+    app.debug = True
     full_app.run()
 
 

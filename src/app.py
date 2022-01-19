@@ -1,7 +1,6 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 
-
 class App:
     def __init__(self, name: str, secret_key: str) -> None:
         self._app = Flask(name, template_folder="templates")
@@ -18,4 +17,3 @@ class App:
 
     def run(self) -> None:
         return self._app.run()
-
