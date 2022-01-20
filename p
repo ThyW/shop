@@ -24,6 +24,14 @@ db-shell() {
     psql --host=localhost --port=5432 --user=shop -w
 }
 
+db-import() {
+    psql --host=localhost --port=5432 --user=shop -w shop < $3
+}
+
+db-export() {
+    pg_dump --host=localhost --port=5432 --user=shop -w shop > db.sql
+}
+
 if [ $1 = "build" ]; then
     build;
 elif [ $1 = "load" ]; then
@@ -34,4 +42,8 @@ elif [ $1 = "kill" ]; then
     kill;
 elif [ $1 = "db" -a $2 = "shell" ]; then
     db-shell;
+elif [ $1 = "db" -a $2 = "import" ]; then
+    db-import;
+elif [ $1 = "db" -a $2 = "export" ]; then
+    db-export;
 fi
