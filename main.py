@@ -146,11 +146,14 @@ def log_out():
 def new_order():
     uid = session.get("user_id")
     if uid:
-        new_order = Orders(belongs_to=uid, products=[], products_amount=[])
-        db.session.add(new_order)
-        db.session.commit()
-        session["most_recent_order"] = new_order.id
-        return redirect("/cart")
+        cart_query = Cart.query.filter_by(id=uid)
+        if q := cart_query.first():
+            new_order = Orders(belongs_to=uid, products=q.products)
+            q.products = []
+            db.session.add(new_order)
+            db.session.commit()
+            session["most_recent_order"] = new_order.id
+            return redirect("/cart")
     else:
         flash("Not logged in!")
         return redirect("/cart")
