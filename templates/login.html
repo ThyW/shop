@@ -10,9 +10,11 @@
 	   {% endif %}
 	{% endwith %}
 	<form method = "POST">
-	    <p>Username or Email<input type="text" name="username"/></p>
-	    <p>Password<input type="password" name="password"/></p>
-	    <p><input type="submit" name="login_submit"/></p>
+	    <label>Username or Email</label><br>
+	    <input type="text" name="username"/><br>
+	    <label>Password</label><br>
+	    <input type="password" name="password"/><br>
+	    <input type="submit" name="login_submit" value="Login"/>
 	</form>
     {% endblock %}
 </div>

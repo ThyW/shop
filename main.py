@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from flask import render_template, request, session, redirect
 from flask.helpers import flash
-from src import is_mail, MutableList, Users, Orders, Cart, Products, app, db, full_app
+from src import is_mail, Users, Orders, Cart, Products, app, db, full_app
 
 
 @app.route('/')
@@ -83,8 +83,8 @@ def sing_up():
 def catalogue():
     items = Products.query.all()
     logged = session.get("username")
-
-    template = render_template("catalogue.html", shop_items=items, user=logged, admin=session.get("admin"))
+    admin = session.get("admin")
+    template = render_template("catalogue.html", shop_items=items, user=logged, admin=admin)
     return template
 
 # TODO: add support for removing stuff from the cart
